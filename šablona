@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>p.0rn.hub!</title>
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background: black;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .container {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      pointer-events: none;
+      padding: 20px;
+      box-sizing: border-box;
+      z-index: 3;
+    }
+
+    #message {
+      font-size: 7vw;
+      font-weight: 800;
+      line-height: 1.25;
+      word-break: break-word;
+      animation: rainbowText 4s linear infinite;
+    }
+
+    @keyframes rainbowText {
+      0%   { color: #ff0033; }
+      16%  { color: #ff9900; }
+      32%  { color: #ffee00; }
+      48%  { color: #00ff66; }
+      64%  { color: #00ccff; }
+      80%  { color: #6633ff; }
+      100% { color: #ff0033; }
+    }
+
+    /* finální srdce na konci – emoji s animací */
+    #heart {
+      margin-top: 24px;
+      font-size: 22vw;
+      opacity: 0;
+      transform: scale(0.1);
+      transition: transform 3s ease-out, opacity 1.5s ease-in;
+      display: none; /* aby to neposouvalo text */
+      animation: rainbowText 4s linear infinite;
+    }
+
+    #heart.grow {
+      display: block;
+      opacity: 1;
+      transform: scale(2.6);
+      text-shadow: 0 0 40px rgba(255,255,255,0.8);
+    }
+
+    canvas {
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+    }
+
+    #clickBtn {
+      position: fixed;
+      left: 50%;
+      bottom: 12%;
+      transform: translateX(-50%);
+      padding: 16px 38px;
+      font-size: 22px;
+      border-radius: 999px;
+      border: none;
+      background: white;
+      color: black;
+      cursor: pointer;
+      z-index: 5;
+      display: none;
+    }
+
+    #clickBtn:active {
+      transform: translateX(-50%) scale(0.95);
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="container">
+    <div id="message"></div>
+    <div id="heart">❤</div>
+  </div>
+
+  <button id="clickBtn">klikni</button>
+  <canvas id="fireworks"></canvas>
+
+  <script>
+    const messageEl = document.getElementById("message");
+    const heartEl = document.getElementById("heart");
+    const canvas = document.getElementById("fireworks");
+    const ctx = canvas.getContext("2d");
+    const clickBtn = document.getElementById("clickBtn");
+
+    const fullText1 = "všechno nejlepší k svátku Baru";
+    const fullTextMid = "tvůj vlastní sváteční web";
+    const fullText2 = "měj krásný den kočko";
+
+    let stage = 1; // 1 = ohňostroj, 2 = konfety, 3 = finální srdce
+    let animationRunning = false;
+    let fireworksActive = false;
+    let confettiActive = false;
+
+    let particles = [];   // pro ohňostroj
+    let rings = [];       // kruhy ohňostroje
+    let confettiPieces = []; // konfety
+
+    // ===== pomalé psaní textu =====
+    function typeText(text, onComplete) {
+      let i = 0;
+      messageEl.textContent = "";
+
+      function step() {
+        if (i < text.length) {
+          messageEl.textContent += text[i];
+          i++;
+          setTimeout(step, 150); // rychlost psaní
+        } else {
+          if (onComplete) onComplete();
+        }
+      }
+      step();
+    }
+
+    // ===== CANVAS / ANIMACE =====
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    resizeCanvas();
+    window.addEventListener("resize", resizeCanvas);
+
+    const fireworkColors = ["#ff0055", "#ffaa00", "#ffee00", "#00ff99", "#00ccff", "#9966ff"];
+    const confettiColors = ["#ff1744", "#ffea00", "#00e676", "#2979ff", "#ff9100", "#e040fb"];
+
+    function createFirework() {
+      const x = Math.random() * canvas.width;
+      const y = Math.random() * canvas.height * 0.5;
+      const count = 70;
+
+      for (let i = 0; i < count; i++) {
+        const angle = (Math.PI * 2 * i) / count;
+        const speed = Math.random() * 4 + 1;
+
+        particles.push({
+          x,
+          y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          alpha: 1,
+          color: fireworkColors[Math.floor(Math.random() * fireworkColors.length)]
+        });
+      }
+
+      // kruhová vlna
+      rings.push({
+        x,
+        y,
+        radius: 0,
+        alpha: 1
+      });
+    }
+
+    function spawnConfettiPiece() {
+      const size = Math.random() * 8 + 4;
+      confettiPieces.push({
+        x: Math.random() * canvas.width,
+        y: -10,
+        vy: Math.random() * 2 + 1.5,
+        vx: (Math.random() - 0.5) * 1,
+        size,
+        color: confettiColors[Math.floor(Math.random() * confettiColors.length)],
+        angle: Math.random() * Math.PI * 2,
+        vAngle: (Math.random() - 0.5) * 0.2
+      });
+    }
+
+    function animate() {
+      if (!animationRunning) return;
+
+      ctx.globalCompositeOperation = "source-over";
+      ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.globalCompositeOperation = "lighter";
+
+      // ohňostroj
+      if (fireworksActive) {
+        for (let i = particles.length - 1; i >= 0; i--) {
+          const p = particles[i];
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vy += 0.03;
+          p.alpha -= 0.01;
+
+          if (p.alpha <= 0) {
+            particles.splice(i, 1);
+            continue;
+          }
+
+          ctx.globalAlpha = p.alpha;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
+          ctx.fillStyle = p.color;
+          ctx.fill();
+        }
+
+        for (let i = rings.length - 1; i >= 0; i--) {
+          const r = rings[i];
+          r.radius += 2;
+          r.alpha -= 0.01;
+          if (r.alpha <= 0) {
+            rings.splice(i, 1);
+            continue;
+          }
+          ctx.globalAlpha = r.alpha;
+          ctx.beginPath();
+          ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
+          ctx.strokeStyle = "rgba(255,255,255,0.7)";
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+
+        ctx.globalAlpha = 1;
+
+        if (Math.random() < 0.08) {
+          createFirework();
+        }
+      }
+
+      // konfety
+      if (confettiActive) {
+        if (confettiPieces.length < 250) {
+          for (let i = 0; i < 10; i++) spawnConfettiPiece();
+        }
+
+        for (let i = confettiPieces.length - 1; i >= 0; i--) {
+          const c = confettiPieces[i];
+          c.y += c.vy;
+          c.x += c.vx;
+          c.angle += c.vAngle;
+
+          if (c.y - 20 > canvas.height) {
+            confettiPieces.splice(i, 1);
+            continue;
+          }
+
+          ctx.globalAlpha = 1;
+          ctx.save();
+          ctx.translate(c.x, c.y);
+          ctx.rotate(c.angle);
+          ctx.fillStyle = c.color;
+          ctx.fillRect(-c.size / 2, -c.size / 2, c.size, c.size * 1.4);
+          ctx.restore();
+        }
+      }
+
+      ctx.globalAlpha = 1;
+      requestAnimationFrame(animate);
+    }
+
+    // ===== sekvence 1 – text + ohňostroj =====
+    function startFirstSequence() {
+      typeText(fullText1, () => {
+        setTimeout(() => {
+          startFireworks();
+        }, 900); // kratší prodleva
+      });
+    }
+
+    function startFireworks() {
+      messageEl.style.opacity = 0;
+
+      canvas.style.display = "block";
+      fireworksActive = true;
+      confettiActive = false;
+      particles = [];
+      rings = [];
+
+      if (!animationRunning) {
+        animationRunning = true;
+        animate();
+      }
+
+      createFirework();
+
+      setTimeout(() => {
+        if (stage === 1 && fireworksActive) {
+          clickBtn.style.display = "inline-block";
+        }
+      }, 2000);
+    }
+
+    // ===== sekvence 2 – text "tvůj vlastní sváteční web" + konfety =====
+    function startMiddleSequence() {
+      stage = 2;
+
+      // ukončit ohňostroj, ale ne animaci celkově
+      fireworksActive = false;
+      particles = [];
+      rings = [];
+
+      clickBtn.style.display = "none";
+      messageEl.style.opacity = 1;
+
+      typeText(fullTextMid, () => {
+        setTimeout(() => {
+          startConfetti();
+        }, 600);
+      });
+    }
+
+    function startConfetti() {
+      canvas.style.display = "block";
+      confettiActive = true;
+      confettiPieces = [];
+
+      if (!animationRunning) {
+        animationRunning = true;
+        animate();
+      }
+
+      // po chvíli zase ukážeme tlačítko
+      setTimeout(() => {
+        if (stage === 2 && confettiActive) {
+          clickBtn.style.display = "inline-block";
+        }
+      }, 2000);
+    }
+
+    // ===== sekvence 3 – "měj krásný den kočko" + finální srdce =====
+    function startFinalSequence() {
+      stage = 3;
+
+      confettiActive = false;
+      confettiPieces = [];
+
+      animationRunning = false;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      canvas.style.display = "none";
+      clickBtn.style.display = "none";
+
+      messageEl.style.opacity = 1;
+      typeText(fullText2, () => {
+        setTimeout(() => {
+          heartEl.style.display = "block";
+          void heartEl.offsetWidth; // reflow pro animaci
+          heartEl.classList.add("grow");
+          // srdce už neodstraňujeme – zůstane na černé stránce
+        }, 500);
+      });
+    }
+
+    // tlačítko klikni – podle stage
+    clickBtn.addEventListener("click", () => {
+      if (stage === 1) {
+        startMiddleSequence();
+      } else if (stage === 2) {
+        startFinalSequence();
+      }
+    });
+
+    // start celé show
+    startFirstSequence();
+  </script>
+  // 1. Přečteme ID z URL
+  const urlParams = new URLSearchParams(window.location.search);
+  const id = urlParams.get('id');
+
+  console.log("Nalezené ID:", id);
+</script>
+
+</body>
+</html>
